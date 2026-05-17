@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibeStream - Your Mood, Your Music</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Poppins', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            500: '#8b5cf6', // Violet
+                            600: '#7c3aed',
+                            900: '#1e1b4b',
+                        },
+                        dark: {
+                            800: '#1f2937',
+                            900: '#111827',
+                            950: '#030712',
+                        }
+                    },
+                    animation: {
+                        'marquee-left': 'marquee-left 40s linear infinite',
+                        'marquee-right': 'marquee-right 40s linear infinite',
+                        'fade-in': 'fadeIn 0.5s ease-out forwards',
+                        'slide-up': 'slideUp 0.6s ease-out forwards',
+                    },
+                    keyframes: {
+                        'marquee-left': {
+                            '0%': { transform: 'translateX(0%)' },
+                            '100%': { transform: 'translateX(-50%)' },
+                        },
+                        'marquee-right': {
+                            '0%': { transform: 'translateX(-50%)' },
+                            '100%': { transform: 'translateX(0%)' },
+                        },
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideUp: {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #030712;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+        
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Hide scrollbar for clean UI */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #030712;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4b5563;
+        }
+
+        .artist-card {
+            position: relative;
+            overflow: hidden;
+            border-radius: 1rem;
+            transition: transform 0.3s ease, filter 0.3s ease;
+            filter: grayscale(80%) brightness(0.7);
+        }
+        
+        .artist-card:hover {
+            transform: scale(1.05);
+            filter: grayscale(0%) brightness(1.1);
+            z-index: 10;
+        }
+
+        .artist-overlay {
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+        }
+
+        .toast-enter {
+            transform: translateY(100%);
+            opacity: 0;
+        }
+        .toast-enter-active {
+            transform: translateY(0);
+            opacity: 1;
+            transition: all 0.3s ease-out;
+        }
+        .toast-exit {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .toast-exit-active {
+            transform: translateY(100%);
+            opacity: 0;
+            transition: all 0.3s ease-in;
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col relative">
+
+    <!-- Background Animated Artist Grid -->
+    <div id="artist-bg" class="fixed inset-0 z-0 overflow-hidden opacity-40 pointer-events-none flex flex-col justify-center gap-4">
+        <!-- Row 1: Left moving -->
+        <div class="flex gap-4 w-[200%] animate-marquee-left" id="artist-row-1">
+            <!-- Populated via JS to ensure smooth infinite scroll -->
+        </div>
+        <!-- Row 2: Right moving -->
+        <div class="flex gap-4 w-[200%] animate-marquee-right" id="artist-row-2">
+            <!-- Populated via JS -->
+        </div>
+    </div>
+
+    <!-- Gradient Overlay to ensure text readability -->
+    <div class="fixed inset-0 z-0 bg-gradient-to-b from-dark-950/80 via-dark-950/60 to-dark-950/90 pointer-events-none"></div>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="relative z-10 flex-grow flex flex-col items-center justify-center p-4 sm:p-8 min-h-screen">
+        
+        <!-- View 1: Auth (Login/Signup) -->
+        <div id="view-auth" class="w-full max-w-md w-full animate-fade-in">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-600 mb-4 shadow-lg shadow-brand-500/30">
+                    <i class="fas fa-play text-2xl text-white ml-1"></i>
+                </div>
+                <h1 class="text-4xl font-display font-bold text-white mb-2">VibeStream</h1>
+                <p class="text-gray-400">Discover your mood. Play your vibe.</p>
+            </div>
+
+            <div class="glass-panel p-8 rounded-2xl shadow-2xl">
+                <div class="flex space-x-4 mb-8 border-b border-gray-700 pb-2">
+                    <button id="tab-login" class="flex-1 text-lg font-semibold text-brand-400 border-b-2 border-brand-500 pb-2 transition-colors">Sign In</button>
+                    <button id="tab-signup" class="flex-1 text-lg font-semibold text-gray-500 hover:text-gray-300 pb-2 transition-colors border-b-2 border-transparent">Sign Up</button>
+                </div>
+
+                <!-- Login Form -->
+                <form id="form-login" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                        <div class="relative">
+                            <i class="fas fa-user absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i>
+                            <input type="text" id="login-user" required class="w-full bg-dark-800/50 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all" placeholder="Enter username">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">Password</label>
+                        <div class="relative">
+                            <i class="fas fa-lock absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i>
+                            <input type="password" id="login-pass" required class="w-full bg-dark-800/50 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all" placeholder="Enter password">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-gradient-to-r from-brand-600 to-pink-600 hover:from-brand-500 hover:to-pink-500 text-white font-bold py-3 px-4 rounded-lg shadow-lg transform transition hover:-translate-y-0.5 mt-4">
+                        Let's Vibe <i class="fas fa-arrow-right ml-2"></i>
+                    </button>
+                </form>
+
+                <!-- Signup Form (Hidden by default) -->
+                <form id="form-signup" class="space-y-4 hidden">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">Choose Username</label>
+                        <div class="relative">
+                            <i class="fas fa-user-plus absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i>
+                            <input type="text" id="signup-user" required class="w-full bg-dark-800/50 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all" placeholder="Create username">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">Create Password</label>
+                        <div class="relative">
+                            <i class="fas fa-key absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i>
+                            <input type="password" id="signup-pass" required class="w-full bg-dark-800/50 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all" placeholder="Create password">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-gradient-to-r from-pink-600 to-brand-600 hover:from-pink-500 hover:to-brand-500 text-white font-bold py-3 px-4 rounded-lg shadow-lg transform transition hover:-translate-y-0.5 mt-4">
+                        Create Account <i class="fas fa-user-check ml-2"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- View 2: Language Selection -->
+        <div id="view-language" class="hidden w-full max-w-5xl animate-fade-in">
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h2 class="text-3xl sm:text-4xl font-display font-bold text-white mb-2">Welcome, <span id="display-user" class="text-brand-400">User</span>!</h2>
+                    <p class="text-gray-400 text-lg">Which language are you vibing with today?</p>
+                </div>
+                <button onclick="logout()" class="text-gray-400 hover:text-white transition px-4 py-2 rounded-lg hover:bg-white/10"><i class="fas fa-sign-out-alt mr-2"></i>Logout</button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Lang Cards -->
+                <button onclick="selectLanguage('Telugu')" class="group relative overflow-hidden rounded-2xl aspect-[4/3] shadow-lg transform transition hover:-translate-y-2 hover:shadow-brand-500/20 text-left">
+                    <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80" alt="Telugu" class="absolute inset-0 w-full h-full object-cover transition duration-500 group-hover:scale-110 opacity-60">
+                    <div class="absolute inset-0 bg-gradient-to-t from-dark-950 via-dark-950/40 to-transparent"></div>
+                    <div class="absolute bottom-0 left-0 p-6">
+                        <h3 class="text-3xl font-display font-bold text-white mb-1">Telugu</h3>
+                        <p class="text-brand-300 group-hover:text-brand-200 transition">Tollywood Hits <i class="fas fa-chevron-right ml-1 opacity-0 group-hover:opacity-100 transition"></i></p>
+                    </div>
+                </button>
+                
+                <button onclick="selectLanguage('Hindi')" class="group relative overflow-hidden rounded-2xl aspect-[4/3] shadow-lg transform transition hover:-translate-y-2 hover:shadow-pink-500/20 text-left">
+                    <img src="https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=600&q=80" alt="Hindi" class="absolute inset-0 w-full h-full object-cover transition duration-500 group-hover:scale-110 opacity-60">
+                    <div class="absolute inset-0 bg-gradient-to-t from-dark-950 via-dark-950/40 to-transparent"></div>
+                    <div class="absolute bottom-0 left-0 p-6">
+                        <h3 class="text-3xl font-display font-bold text-white mb-1">Hindi</h3>
+                        <p class="text-pink-300 group-hover:text-pink-200 transition">Bollywood Chartbusters <i class="fas fa-chevron-right ml-1 opacity-0 group-hover:opacity-100 transition"></i></p>
+                    </div>
+                </button>
+
+                <button onclick="selectLanguage('English')" class="group relative overflow-hidden rounded-2xl aspect-[4/3] shadow-lg transform transition hover:-translate-y-2 hover:shadow-blue-500/20 text-left">
+                    <img src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80" alt="English" class="absolute inset-0 w-full h-full object-cover transition duration-500 group-hover:scale-110 opacity-60">
+                    <div class="absolute inset-0 bg-gradient-to-t from-dark-950 via-dark-950/40 to-transparent"></div>
+                    <div class="absolute bottom-0 left-0 p-6">
+                        <h3 class="text-3xl font-display font-bold text-white mb-1">English</h3>
+                        <p class="text-blue-300 group-hover:text-blue-200 transition">Global Top 50 <i class="fas fa-chevron-right ml-1 opacity-0 group-hover:opacity-100 transition"></i></p>
+                    </div>
+                </button>
+
+                <button onclick="selectLanguage('Tamil')" class="group relative overflow-hidden rounded-2xl aspect-[4/3] shadow-lg transform transition hover:-translate-y-2 hover:shadow-yellow-500/20 text-left">
+                    <img src="https://images.unsplash.com/photo-1501612780327-45045538702b?w=600&q=80" alt="Tamil" class="absolute inset-0 w-full h-full object-cover transition duration-500 group-hover:scale-110 opacity-60">
+                    <div class="absolute inset-0 bg-gradient-to-t from-dark-950 via-dark-950/40 to-transparent"></div>
+                    <div class="absolute bottom-0 left-0 p-6">
+                        <h3 class="text-3xl font-display font-bold text-white mb-1">Tamil</h3>
+                        <p class="text-yellow-300 group-hover:text-yellow-200 transition">Kollywood Beats <i class="fas fa-chevron-right ml-1 opacity-0 group-hover:opacity-100 transition"></i></p>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <!-- View 3: Mood Selection -->
+        <div id="view-mood" class="hidden w-full max-w-5xl animate-fade-in">
+            <div class="flex items-center mb-8 gap-4">
+                <button onclick="goBackToLanguage()" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i class="fas fa-arrow-left"></i></button>
+                <div>
+                    <h2 class="text-3xl sm:text-4xl font-display font-bold text-white">How are you feeling?</h2>
+                    <p class="text-gray-400 text-lg">Select a mood for your <span id="display-lang" class="text-brand-400 font-semibold">Language</span> playlist.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                <!-- Mood Cards generated by JS -->
+                <div id="mood-grid" class="col-span-full grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+            </div>
+        </div>
+
+        <!-- View 4: Playlist View -->
+        <div id="view-playlist" class="hidden w-full max-w-4xl animate-fade-in">
+            <div class="glass-panel rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row">
+                
+                <!-- Left Sidebar: Playlist Info -->
+                <div class="w-full md:w-1/3 p-8 bg-gradient-to-br from-dark-800 to-dark-900 border-r border-white/5 flex flex-col items-center md:items-start text-center md:text-left">
+                    <button onclick="goBackToMood()" class="mb-6 text-gray-400 hover:text-white transition flex items-center"><i class="fas fa-arrow-left mr-2"></i> Back</button>
+                    
+                    <div class="w-48 h-48 rounded-xl shadow-2xl mb-6 relative overflow-hidden group">
+                        <img id="playlist-cover" src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=400&q=80" alt="Cover" class="w-full h-full object-cover transition duration-500 group-hover:scale-110">
+                        <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                            <i class="fas fa-play-circle text-5xl text-white drop-shadow-lg"></i>
+                        </div>
+                    </div>
+                    
+                    <h2 id="playlist-title" class="text-3xl font-display font-bold text-white mb-2 leading-tight">Mood Playlist</h2>
+                    <p class="text-brand-400 font-medium mb-4"><i class="fab fa-spotify mr-1"></i> JioSaavn Curated</p>
+                    <p id="playlist-desc" class="text-gray-400 text-sm mb-6">Top trendy tracks perfectly matched for your current vibe and language.</p>
+                    
+                    <button id="play-all-btn" onclick="playSong(0)" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 px-4 rounded-full shadow-lg transition flex items-center justify-center gap-2">
+                        <i class="fas fa-play"></i> Play All
+                    </button>
+                </div>
+
+                <!-- Right Side: Song List -->
+                <div class="w-full md:w-2/3 p-2 sm:p-6 bg-dark-900/80">
+                    <div class="flex text-xs font-semibold text-gray-400 uppercase tracking-wider pb-3 border-b border-gray-800 mb-4 px-4">
+                        <div class="w-8 text-center">#</div>
+                        <div class="flex-grow">Title</div>
+                        <div class="w-16 text-right"><i class="far fa-clock"></i></div>
+                    </div> <!-- Added missing closing tag here -->
+                    <div id="song-list" class="space-y-1 max-h-[60vh] overflow-y-auto pr-2 pb-4">
+                        <!-- Songs injected here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Audio Player Bar -->
+    <div id="player-bar" class="fixed bottom-0 left-0 right-0 bg-dark-950/95 backdrop-blur-xl border-t border-gray-800 p-3 sm:p-4 transform translate-y-full transition-transform duration-500 z-40 flex items-center gap-4">
+        <audio id="main-audio"></audio>
+        
+        <!-- Now Playing Info -->
+        <div class="flex items-center gap-3 w-1/3 min-w-0">
+            <div class="w-12 h-12 rounded bg-dark-800 overflow-hidden flex-shrink-0 relative group">
+                <img id="player-cover" src="https://placehold.co/100x100/1e1b4b/8b5cf6?text=V" class="w-full h-full object-cover">
+            </div>
+            <div class="min-w-0">
+                <div id="player-title" class="text-white font-semibold text-sm truncate">Select a song</div>
+                <div id="player-artist" class="text-gray-400 text-xs truncate">Artist</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="flex flex-col items-center justify-center flex-1 max-w-md">
+            <div class="flex items-center gap-6 mb-2">
+                <button onclick="prevSong()" class="text-gray-400 hover:text-white transition"><i class="fas fa-step-backward"></i></button>
+                <button onclick="togglePlay()" id="play-pause-btn" class="w-10 h-10 rounded-full bg-brand-600 hover:bg-brand-500 text-white flex items-center justify-center transition transform hover:scale-105">
+                    <i class="fas fa-play ml-1"></i>
+                </button>
+                <button onclick="nextSong()" class="text-gray-400 hover:text-white transition"><i class="fas fa-step-forward"></i></button>
+            </div>
+            <!-- Progress Bar -->
+            <div class="w-full flex items-center gap-2 text-xs text-gray-500 font-medium">
+                <span id="time-current">0:00</span>
+                <div class="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden cursor-pointer relative" id="progress-container" onclick="seekAudio(event)">
+                    <div id="progress-bar" class="h-full bg-brand-500 w-0 pointer-events-none transition-all duration-100 ease-linear"></div>
+                </div>
+                <span id="time-total">0:30</span>
+            </div>
+        </div>
+
+        <!-- Volume/Extras -->
+        <div class="w-1/3 hidden sm:flex justify-end items-center gap-3 text-gray-400">
+            <i class="fas fa-volume-up text-sm"></i>
+            <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="1" class="w-24 h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer" onchange="setVolume(this.value)">
+        </div>
+    </div>
+
+    <!-- Global Toast Container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- FIREBASE CONFIGURATION ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'vibestream-default';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        
+        let db;
+        let auth;
+        let isFirebaseReady = false;
+
+        if (firebaseConfig) {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        }
+
+        async function initFirebase() {
+            if (!auth) return;
+            try {
+                if (typeof __initial_auth_token !== 'undefined') {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                isFirebaseReady = true;
+            } catch (e) {
+                console.error("Firebase Auth Error", e);
+                showToast("Database connection failed", "error");
+            }
+        }
+
+        // --- DATA CONFIGURATION ---
+
+        const artists = [
+            { name: "Anirudh", img: "https://images.unsplash.com/photo-1516280440502-6c24099b24b8?w=300&h=300&fit=crop" },
+            { name: "S S Thaman", img: "https://images.unsplash.com/photo-1493225457124-a1a2a5f5f928?w=300&h=300&fit=crop" },
+            { name: "DSP", img: "https://images.unsplash.com/photo-1598387181032-a3103a2db5b3?w=300&h=300&fit=crop" },
+            { name: "The Weeknd", img: "https://images.unsplash.com/photo-1618349581373-d56b001d2d3e?w=300&h=300&fit=crop" },
+            { name: "Taylor Swift", img: "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=300&h=300&fit=crop" },
+            { name: "Sai Abhyankar", img: "https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=300&h=300&fit=crop" },
+            { name: "Sabrina Carpenter", img: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300&h=300&fit=crop" },
+            { name: "Arijit Singh", img: "https://images.unsplash.com/photo-1506157786151-b8491531f063?w=300&h=300&fit=crop" },
+            { name: "Shreya Ghoshal", img: "https://images.unsplash.com/photo-1525362081669-2b476bb628c3?w=300&h=300&fit=crop" },
+            { name: "Jonita Gandhi", img: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop" }
+        ];
+
+        const moods = [
+            { id: "happy", name: "Happy", icon: "fa-smile-beam", color: "from-yellow-400 to-orange-500" },
+            { id: "sad", name: "Sad", icon: "fa-sad-tear", color: "from-blue-600 to-blue-800" },
+            { id: "rage", name: "Rage", icon: "fa-fire", color: "from-red-600 to-red-900" },
+            { id: "romantic", name: "Romantic", icon: "fa-wine-glass", color: "from-purple-500 to-pink-500" }
+        ];
+
+        // --- APP STATE ---
+        const state = {
+            currentUser: null,
+            usersDb: {}, // In-memory mock database { username: password }
+            currentLang: null,
+            currentMood: null
+        };
+
+        let currentPlaylist = [];
+        let currentSongIndex = -1;
+        let isPlaying = false;
+        const audioEl = new Audio();
+
+        // --- STREAMING_CHUNK:JavaScript Logic - UI Utilities ---
+        
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const colors = type === 'error' ? 'bg-red-500/90 border-red-400' : 'bg-brand-600/90 border-brand-400';
+            const icon = type === 'error' ? 'fa-exclamation-circle' : 'fa-check-circle';
+            
+            toast.className = `glass-panel ${colors} text-white px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 border toast-enter`;
+            toast.innerHTML = `<i class="fas ${icon}"></i> <span class="font-medium">${message}</span>`;
+            
+            container.appendChild(toast);
+            
+            // Trigger animation frame for transition
+            requestAnimationFrame(() => {
+                toast.classList.remove('toast-enter');
+                toast.classList.add('toast-enter-active');
+            });
+
+            setTimeout(() => {
+                toast.classList.remove('toast-enter-active');
+                toast.classList.add('toast-exit-active');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function switchView(viewId) {
+            const views = ['view-auth', 'view-language', 'view-mood', 'view-playlist'];
+            views.forEach(v => {
+                const el = document.getElementById(v);
+                if (v === viewId) {
+                    el.classList.remove('hidden');
+                    // Reset animation
+                    el.classList.remove('animate-fade-in');
+                    void el.offsetWidth; // trigger reflow
+                    el.classList.add('animate-fade-in');
+                } else {
+                    el.classList.add('hidden');
+                }
+            });
+        }
+
+        // --- STREAMING_CHUNK:JavaScript Logic - Background Setup ---
+
+        function initBackground() {
+            const row1 = document.getElementById('artist-row-1');
+            const row2 = document.getElementById('artist-row-2');
+            
+            // Double the array for seamless infinite marquee
+            const doubleArtists = [...artists, ...artists];
+            
+            // Generate HTML for cards
+            const createCards = (items) => items.map(artist => `
+                <div class="artist-card flex-shrink-0 w-32 h-32 sm:w-48 sm:h-48 rounded-xl shadow-lg border border-white/5">
+                    <img src="${artist.img}" alt="${artist.name}" class="w-full h-full object-cover">
+                    <div class="artist-overlay absolute inset-0 flex flex-col justify-end p-3">
+                        <span class="text-white font-semibold text-xs sm:text-sm drop-shadow-md truncate">${artist.name}</span>
+                    </div>
+                </div>
+            `).join('');
+
+            // Row 1 uses first half of random, Row 2 uses second half (shuffled nicely)
+            const shuffled = [...doubleArtists].sort(() => 0.5 - Math.random());
+            row1.innerHTML = createCards(shuffled);
+            row2.innerHTML = createCards([...shuffled].reverse());
+        }
+
+        // --- STREAMING_CHUNK:JavaScript Logic - Authentication ---
+
+        function initAuthTabs() {
+            const tabLogin = document.getElementById('tab-login');
+            const tabSignup = document.getElementById('tab-signup');
+            const formLogin = document.getElementById('form-login');
+            const formSignup = document.getElementById('form-signup');
+            const loginBtn = formLogin.querySelector('button[type="submit"]');
+            const signupBtn = formSignup.querySelector('button[type="submit"]');
+
+            tabLogin.addEventListener('click', () => {
+                formLogin.classList.remove('hidden');
+                formSignup.classList.add('hidden');
+                tabLogin.className = "flex-1 text-lg font-semibold text-brand-400 border-b-2 border-brand-500 pb-2 transition-colors";
+                tabSignup.className = "flex-1 text-lg font-semibold text-gray-500 hover:text-gray-300 pb-2 transition-colors border-b-2 border-transparent";
+            });
+
+            tabSignup.addEventListener('click', () => {
+                formSignup.classList.remove('hidden');
+                formLogin.classList.add('hidden');
+                tabSignup.className = "flex-1 text-lg font-semibold text-pink-400 border-b-2 border-pink-500 pb-2 transition-colors";
+                tabLogin.className = "flex-1 text-lg font-semibold text-gray-500 hover:text-gray-300 pb-2 transition-colors border-b-2 border-transparent";
+            });
+
+            formSignup.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const user = document.getElementById('signup-user').value.trim();
+                const pass = document.getElementById('signup-pass').value.trim();
+                
+                // Show loading state
+                signupBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Creating...';
+                signupBtn.disabled = true;
+
+                // Fake a small network delay so the animation shows
+                setTimeout(() => {
+                    const existingUsers = JSON.parse(localStorage.getItem('vibe_users')) || {};
+                    
+                    if (existingUsers[user]) {
+                        showToast('Username already exists. Please login.', 'error');
+                    } else {
+                        // Save account locally
+                        existingUsers[user] = pass;
+                        localStorage.setItem('vibe_users', JSON.stringify(existingUsers));
+                        
+                        showToast('Account created! Logging in...');
+                        loginUser(user);
+                    }
+                    
+                    // Reset button state
+                    signupBtn.innerHTML = 'Create Account <i class="fas fa-user-check ml-2"></i>';
+                    signupBtn.disabled = false;
+                }, 800);
+            });
+
+            formLogin.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const user = document.getElementById('login-user').value.trim();
+                const pass = document.getElementById('login-pass').value.trim();
+
+                // Show loading state
+                loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Loading...';
+                loginBtn.disabled = true;
+
+                // Fake a small network delay
+                setTimeout(() => {
+                    const existingUsers = JSON.parse(localStorage.getItem('vibe_users')) || {};
+
+                    if (existingUsers[user] && existingUsers[user] === pass) {
+                        showToast(`Welcome back, ${user}!`);
+                        loginUser(user);
+                    } else {
+                        showToast('Invalid username or password.', 'error');
+                    }
+                    
+                    // Reset button state
+                    loginBtn.innerHTML = 'Let\'s Vibe <i class="fas fa-arrow-right ml-2"></i>';
+                    loginBtn.disabled = false;
+                }, 800);
+            });
+        }
+
+        function loginUser(username) {
+            state.currentUser = username;
+            document.getElementById('display-user').textContent = username;
+            document.getElementById('artist-bg').classList.add('blur-sm'); // Add blur to bg for inner pages
+            document.getElementById('form-login').reset();
+            document.getElementById('form-signup').reset();
+            switchView('view-language');
+        }
+
+        function logout() {
+            state.currentUser = null;
+            state.currentLang = null;
+            state.currentMood = null;
+            document.getElementById('artist-bg').classList.remove('blur-sm');
+            switchView('view-auth');
+            showToast('Logged out successfully.');
+        }
+
+        // --- STREAMING_CHUNK:JavaScript Logic - Navigation and Playlist Generation ---
+
+        function selectLanguage(lang) {
+            state.currentLang = lang;
+            document.getElementById('display-lang').textContent = lang;
+            renderMoodGrid();
+            switchView('view-mood');
+        }
+
+        function goBackToLanguage() {
+            state.currentLang = null;
+            switchView('view-language');
+        }
+
+        function goBackToMood() {
+            state.currentMood = null;
+            switchView('view-mood');
+        }
+
+        function renderMoodGrid() {
+            const grid = document.getElementById('mood-grid');
+            grid.innerHTML = moods.map((mood, idx) => `
+                <button onclick="selectMood('${mood.id}')" class="group relative overflow-hidden rounded-xl p-6 shadow-lg transform transition hover:-translate-y-1 text-center border border-white/10 animate-slide-up" style="animation-delay: ${idx * 0.05}s; animation-fill-mode: both;">
+                    <div class="absolute inset-0 bg-gradient-to-br ${mood.color} opacity-40 group-hover:opacity-80 transition duration-300"></div>
+                    <div class="relative z-10">
+                        <i class="fas ${mood.icon} text-4xl text-white mb-3 drop-shadow-md group-hover:scale-110 transition duration-300"></i>
+                        <h3 class="text-xl font-bold text-white tracking-wide">${mood.name}</h3>
+                    </div>
+                </button>
+            `).join('');
+        }
+
+        function selectMood(moodId) {
+            state.currentMood = moods.find(m => m.id === moodId);
+            generateAndRenderPlaylist();
+            switchView('view-playlist');
+        }
+
+        // --- STREAMING_CHUNK:JavaScript Logic - Dummy Data Generator ---
+
+        function generateAndRenderPlaylist() {
+            const titleEl = document.getElementById('playlist-title');
+            const listEl = document.getElementById('song-list');
+            
+            const lang = state.currentLang;
+            const mood = state.currentMood.name;
+            
+            titleEl.innerHTML = `<span class="text-transparent bg-clip-text bg-gradient-to-r ${state.currentMood.color}">${lang} ${mood}</span> Hits`;
+            
+            // Mock song generation algorithm tailored to the request
+            const songs = generateMockSongs(lang, mood);
+            currentPlaylist = songs; // Store globally for the audio player
+            
+            listEl.innerHTML = songs.map((song, idx) => `
+                <div onclick="playSong(${idx})" id="song-row-${idx}" class="flex items-center px-4 py-3 hover:bg-white/5 rounded-lg transition group cursor-pointer song-row">
+                    <div class="w-8 text-gray-500 font-medium">${idx + 1}</div>
+                    <div class="flex-grow flex items-center gap-3">
+                        <div class="w-10 h-10 rounded bg-dark-800 overflow-hidden flex-shrink-0 relative">
+                             <img src="https://source.unsplash.com/random/100x100/?abstract,${mood.toLowerCase()}&sig=${idx}" 
+                                  onerror="this.src='https://placehold.co/100x100/1e1b4b/8b5cf6?text=${song.title.charAt(0)}'" 
+                                  class="w-full h-full object-cover song-cover-img">
+                             <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                                <i class="fas fa-play text-white text-xs"></i>
+                             </div>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-white font-medium group-hover:text-brand-400 transition truncate w-40 sm:w-64">${song.title}</div>
+                            <div class="text-gray-400 text-xs truncate w-40 sm:w-64">${song.artist}</div>
+                        </div>
+                    </div>
+                    <div class="w-16 text-right text-gray-500 text-sm">${song.duration}</div>
+                </div>
+            `).join('');
+        }
+
+        function generateMockSongs(lang, mood) {
+            // Comprehensive database of real songs to fix irrelevant titles
+            const db = {
+                "Telugu": {
+                    "Happy": [
+                        {title: "Baby He Loves You", artist: "Devi Sri Prasad"}, {title: "Sada Nannu", artist: "Mickey J Meyer"}, {title: "Priya Mithunam", artist: "S P Balasubrahmanyam"}, {title: "Love Me", artist: "Sandeep Chowta"}, {title: "Chandrakala", artist: "Hariharan"}, {title: "Ninnu Chuse Anandamlo", artist: "S. P. B. Charan"}, {title: "Hoyna Hoyna", artist: "Anirudh Ravichander"}, {title: "Inka Edo", artist: "G. V. Prakash Kumar"}, {title: "Neeve", artist: "G. V. Prakash Kumar"}, {title: "Oohalu Oohalu", artist: "Mickey J Meyer"},
+                        {title: "Its Your Love", artist: "Mickey J Meyer"}, {title: "Kollagottey", artist: "Karthik"}, {title: "Taanu Nenu", artist: "A. R. Rahman"}, {title: "Beautiful Girl", artist: "Devi Sri Prasad"}, {title: "Avunu Nizam", artist: "KK"}
+                    ],
+                    "Sad": [
+                        {title: "My Love Is Gone", artist: "K.G. Ranjith"}, {title: "Yetu Pone", artist: "Kaala Bhairava"}, {title: "Pillaa Raa", artist: "Anurag Kulkarni"}, {title: "Adiga Adiga", artist: "Sid Sriram"}, {title: "Emai Poyave", artist: "Sid Sriram"}, {title: "Oosupodu", artist: "Anirudh Ravichander"}, {title: "O Sayonara", artist: "Devi Sri Prasad"}, {title: "Po Ve Po", artist: "Anirudh Ravichander"}, {title: "Lucckanna Mate Nillu", artist: "Devi Sri Prasad"}, {title: "Badhulu Thochani", artist: "Karthik"},
+                        {title: "Gelupuleni Samaram", artist: "Kaala Bhairava"}, {title: "Evvarineppudu", artist: "K.M. Radha Krishnan"}, {title: "Yellipoke Shyamala", artist: "Karthik"}, {title: "Ori Devuda", artist: "Anirudh Ravichander"}, {title: "Vellipomaake", artist: "A. R. Rahman"}
+                    ],
+                    "Rage": [
+                        {title: "My Name Is Billa", artist: "Ranjith"}, {title: "Hosahore", artist: "K.K."}, {title: "Down Down Duppa", artist: "Shruti Haasan"}, {title: "Boom Boom", artist: "Devi Sri Prasad"}, {title: "Aaya Sher", artist: "Thaman S"}, {title: "The Karma Theme", artist: "Anirudh Ravichander"}, {title: "Panjaa", artist: "Yuvan Shankar Raja"}, {title: "Kilimanjaro Bhala", artist: "A. R. Rahman"}, {title: "Mass Biriyani", artist: "Devi Sri Prasad"}, {title: "Rakhi Rakhi", artist: "Devi Sri Prasad"},
+                        {title: "Bad Boyz", artist: "Thaman S"}, {title: "Private Party", artist: "Thaman S"}, {title: "Dum Masala", artist: "Thaman S"}, {title: "Fear Song", artist: "Anirudh Ravichander"}, {title: "Kurchi Madathapetti", artist: "Thaman S"}
+                    ],
+                    "Love": [
+                        {title: "Evarevaro", artist: "Vishal Chandrashekhar"}, {title: "Ammayi", artist: "Gopi Sundar"}, {title: "Oh My Baby", artist: "Thaman S"}, {title: "Manasu Maree", artist: "Amit Trivedi"}, {title: "Nee Kannu Neeli Samudram", artist: "Javed Ali"}, {title: "Leharaayi", artist: "Sid Sriram"}, {title: "Jala Jala Jalapaatham Nuvvu", artist: "Jaspreet Jasz"}, {title: "Bujji Bangaram", artist: "Nakash Aziz"}, {title: "Undipo", artist: "Anurag Kulkarni"}, {title: "Adhento Gaani Vunnapaatuga", artist: "Anirudh Ravichander"},
+                        {title: "Maate Vinadhuga", artist: "Sid Sriram"}, {title: "Undiporaadhey", artist: "Sid Sriram"}, {title: "Zindabad Zindabad", artist: "Hesham Abdul Wahab"}, {title: "Endhuko Emo", artist: "Devi Sri Prasad"}, {title: "Cheliya cheliya", artist: "Devi Sri Prasad"}, {title: "My heart", artist: "Karthik"}
+                    ]
+                },
+                "Hindi": {
+                    "Happy": [
+                        {title: "Badtameez Dil", artist: "Benny Dayal"}, {title: "Ghungroo", artist: "Arijit Singh"}, {title: "Subha Hone Na De", artist: "Mika Singh"}, {title: "Kar Gayi Chull", artist: "Badshah"}, {title: "Kala Chashma", artist: "Neha Kakkar"}, {title: "Aankh Marey", artist: "Mika Singh"}, {title: "Chaleya", artist: "Arijit Singh"}, {title: "Dil Dhadakne Do", artist: "Farhan Akhtar"}, {title: "Zindagi Ek Safar", artist: "Kishore Kumar"}, {title: "Urvasi Urvasi", artist: "A.R. Rahman"},
+                        {title: "Makhna", artist: "Tanishk Bagchi"}, {title: "Desi Girl", artist: "Shankar Mahadevan"}, {title: "Abhi Toh Party Shuru Hui Hai", artist: "Badshah"}, {title: "Saturday Saturday", artist: "Badshah"}, {title: "Jhoome Jo Pathaan", artist: "Arijit Singh"}
+                    ],
+                    "Sad": [
+                        {title: "Channa Mereya", artist: "Arijit Singh"}, {title: "Kabira", artist: "Tochi Raina"}, {title: "Tujhe Bhula Diya", artist: "Mohit Chauhan"}, {title: "Agar Tum Saath Ho", artist: "Alka Yagnik"}, {title: "Hamari Adhuri Kahani", artist: "Arijit Singh"}, {title: "Tadap Tadap", artist: "KK"}, {title: "Jiyein Kyun", artist: "Papon"}, {title: "Luka Chuppi", artist: "A.R. Rahman"}, {title: "Main Dhoondne Ko Zamaane Mein", artist: "Arijit Singh"}, {title: "Jag Soona Soona Lage", artist: "Rahat Fateh Ali Khan"},
+                        {title: "Bekhayali", artist: "Sachet Tandon"}, {title: "Bhula Dena", artist: "Mustafa Zahid"}, {title: "Kal Ho Naa Ho", artist: "Sonu Nigam"}, {title: "Judai", artist: "Rekha Bhardwaj"}, {title: "O Saathi", artist: "Atif Aslam"}
+                    ],
+                    "Rage": [
+                        {title: "Apna Time Aayega", artist: "Ranveer Singh"}, {title: "Zinda", artist: "Siddharth Mahadevan"}, {title: "Aarambh", artist: "Piyush Mishra"}, {title: "Sadda Haq", artist: "Mohit Chauhan"}, {title: "Jee Karda", artist: "Divya Kumar"}, {title: "Malhari", artist: "Vishal Dadlani"}, {title: "Dangal", artist: "Daler Mehndi"}, {title: "Besharam Rang", artist: "Shilpa Rao"}, {title: "Kar Har Maidaan Fateh", artist: "Sukhwinder Singh"}, {title: "Bhaag Milkha Bhaag", artist: "Siddharth Mahadevan"},
+                        {title: "Shiva Theme", artist: "Pritam"}, {title: "Brothers Anthem", artist: "Vishal Dadlani"}, {title: "Ziddi Dil", artist: "Vishal Dadlani"}, {title: "Aazadiyan", artist: "Amit Trivedi"}, {title: "Sher Aaya Sher", artist: "Divine"}
+                    ],
+                    "Love": [
+                        {title: "Tum Hi Ho", artist: "Arijit Singh"}, {title: "Kesariya", artist: "Arijit Singh"}, {title: "Zaalima", artist: "Arijit Singh"}, {title: "Pee Loon", artist: "Mohit Chauhan"}, {title: "Raabta", artist: "Arijit Singh"}, {title: "Tujh Mein Rab Dikhta Hai", artist: "Roop Kumar Rathod"}, {title: "Tera Ban Jaunga", artist: "Akhil Sachdeva"}, {title: "Kaun Tujhe", artist: "Palak Muchhal"}, {title: "Hawayein", artist: "Arijit Singh"}, {title: "Dil Diyan Gallan", artist: "Atif Aslam"},
+                        {title: "Tum Se Hi", artist: "Mohit Chauhan"}, {title: "Pehli Nazar Mein", artist: "Atif Aslam"}, {title: "Tere Bina", artist: "A. R. Rahman"}, {title: "Gerua", artist: "Arijit Singh"}, {title: "Apna Bana Le", artist: "Arijit Singh"}
+                    ]
+                },
+                "English": {
+                    "Happy": [
+                        {title: "Shape of You", artist: "Ed Sheeran"}, {title: "Perfect", artist: "Ed Sheeran"}, {title: "I Wanna Be Yours", artist: "Arctic Monkeys"}, {title: "Love Me Like You Do", artist: "Ellie Goulding"}, {title: "Baby", artist: "Justin Bieber"}, {title: "Cheap Thrills", artist: "Sia"}, {title: "I Think They Call This Love", artist: "Elliot James Reay"}, {title: "Night Changes", artist: "One Direction"}, {title: "Favorite", artist: "Isabel LaRosa"}, {title: "Uptown Funk", artist: "Bruno Mars"},
+                        {title: "As It Was", artist: "Harry Styles"}, {title: "Levitating", artist: "Dua Lipa"}, {title: "Flowers", artist: "Miley Cyrus"}, {title: "Dynamite", artist: "BTS"}, {title: "Sugar", artist: "Maroon 5"}
+                    ],
+                    "Sad": [
+                        {title: "Blank Space", artist: "Taylor Swift"}, {title: "End of Beginning", artist: "Djo"}, {title: "Moral of the Story", artist: "Ashe"}, {title: "Summertime Sadness", artist: "Lana Del Rey"}, {title: "Dandelions", artist: "Ruth B."}, {title: "White Mustang", artist: "Lana Del Rey"}, {title: "West Coast", artist: "Lana Del Rey"}, {title: "Brooklyn Baby", artist: "Lana Del Rey"}, {title: "Cinnamon Girl", artist: "Lana Del Rey"}, {title: "Salvatore", artist: "Lana Del Rey"},
+                        {title: "BLUE", artist: "Billie Eilish"}, {title: "Someone Like You", artist: "Adele"}, {title: "Let Her Go", artist: "Passenger"}, {title: "Glimpse of Us", artist: "Joji"}, {title: "Heather", artist: "Conan Gray"}
+                    ],
+                    "Rage": [
+                        {title: "Taki Taki", artist: "DJ Snake"}, {title: "Running Up That Hill", artist: "Kate Bush"}, {title: "Blinding Lights", artist: "The Weeknd"}, {title: "Espresso", artist: "Sabrina Carpenter"}, {title: "All The Stars", artist: "Kendrick Lamar"}, {title: "Sweater Weather", artist: "The Neighbourhood"}, {title: "Beat It", artist: "Michael Jackson"}, {title: "They Don't Care About Us", artist: "Michael Jackson"}, {title: "Dangerous", artist: "Michael Jackson"}, {title: "Billie Jean", artist: "Michael Jackson"},
+                        {title: "Heat Waves", artist: "Glass Animals"}, {title: "Stay", artist: "The Kid LAROI"}, {title: "Diet Mountain Dew", artist: "Lana Del Rey"}, {title: "Starboy", artist: "The Weeknd"}, {title: "Bad Guy", artist: "Billie Eilish"}
+                    ],
+                    "Love": [
+                        {title: "Photograph", artist: "Ed Sheeran"}, {title: "All Of Me", artist: "John Legend"}, {title: "Thinking Out Loud", artist: "Ed Sheeran"}, {title: "Lover", artist: "Taylor Swift"}, {title: "A Thousand Years", artist: "Christina Perri"}, {title: "Die For You", artist: "The Weeknd"}, {title: "Just The Way You Are", artist: "Bruno Mars"}, {title: "Shallow", artist: "Lady Gaga"}, {title: "Love Story", artist: "Taylor Swift"}, {title: "Make You Feel My Love", artist: "Adele"},
+                        {title: "Halo", artist: "Beyoncé"}, {title: "Bleeding Love", artist: "Leona Lewis"}, {title: "At Last", artist: "Etta James"}, {title: "Yellow", artist: "Coldplay"}, {title: "Marry You", artist: "Bruno Mars"}
+                    ]
+                },
+                "Tamil": {
+                    "Happy": [
+                        {title: "Arabic Kuthu", artist: "Anirudh Ravichander"}, {title: "Chellamma", artist: "Anirudh Ravichander"}, {title: "Jolly O Gymkhana", artist: "Anirudh Ravichander"}, {title: "Vaathi Coming", artist: "Anirudh Ravichander"}, {title: "Private Party", artist: "Anirudh Ravichander"}, {title: "Rowdy Baby", artist: "Dhanush"}, {title: "Rakita Rakita Rakita", artist: "Santhosh Narayanan"}, {title: "Megham Karukatha", artist: "Dhanush"}, {title: "Aasa Kooda", artist: "Sai Abhyankar"}, {title: "Katchi Sera", artist: "Sai Abhyankar"},
+                        {title: "Maduraikku Pogathadee", artist: "Vidyasagar"}, {title: "Aal Thotta Boopathy", artist: "Vidyasagar"}, {title: "Vera Level Sago", artist: "D. Imman"}, {title: "Dippam Dappam", artist: "Anirudh Ravichander"}, {title: "Chumma Kizhi", artist: "Anirudh Ravichander"}
+                    ],
+                    "Sad": [
+                        {title: "Kanave Kanave", artist: "Anirudh Ravichander"}, {title: "Po Nee Po", artist: "Anirudh Ravichander"}, {title: "Enna Solla", artist: "Shweta Mohan"}, {title: "Idhayathai Oru", artist: "Anirudh Ravichander"}, {title: "Yennai Maatrum Kadhale", artist: "Sid Sriram"}, {title: "Irava Pagala", artist: "Hariharan"}, {title: "Nenjame", artist: "Anirudh Ravichander"}, {title: "Rathamaarey", artist: "Vishal Mishra"}, {title: "Amma Amma", artist: "K.S. Chithra"}, {title: "Porkanda Singam", artist: "Anirudh Ravichander"},
+                        {title: "Veesum Velichathile", artist: "Harris Jayaraj"}, {title: "Kannathil Muthamittal", artist: "A. R. Rahman"}, {title: "Anbin Vasale", artist: "A. R. Rahman"}, {title: "Oru Paathi Kadhavu", artist: "G. V. Prakash"}, {title: "Vaa Vaa En Devadhai", artist: "Ilaiyaraaja"}
+                    ],
+                    "Rage": [
+                        {title: "Aaluma Doluma", artist: "Anirudh Ravichander"}, {title: "Verithanam", artist: "Vijay"}, {title: "Mankatha Theme", artist: "Yuvan Shankar Raja"}, {title: "Hukum", artist: "Anirudh Ravichander"}, {title: "Naa Ready", artist: "Anirudh Ravichander"}, {title: "Kathi Theme", artist: "Anirudh Ravichander"}, {title: "Vikram Title Track", artist: "Anirudh Ravichander"}, {title: "Vedalam Theme", artist: "Anirudh Ravichander"}, {title: "Bloody Sweet", artist: "Anirudh Ravichander"}, {title: "Once Upon a Time", artist: "Anirudh Ravichander"},
+                        {title: "Neruppu Da", artist: "Santhosh Narayanan"}, {title: "Bhavani Theme", artist: "Anirudh Ravichander"}, {title: "Rolex Theme", artist: "Anirudh Ravichander"}, {title: "KGF Tamil Theme", artist: "Ravi Basrur"}, {title: "Beast Mode", artist: "Anirudh Ravichander"}
+                    ],
+                    "Love": [
+                        {title: "Munbe Vaa", artist: "Shreya Ghoshal"}, {title: "Thalli Pogathey", artist: "Sid Sriram"}, {title: "Ennodu Nee Irundhaal", artist: "Sid Sriram"}, {title: "Hossana", artist: "Vijay Prakash"}, {title: "Oru Daivam", artist: "S P Balasubrahmanyam"}, {title: "Vaseegara", artist: "Bombay Jayashri"}, {title: "Anbe Sivam", artist: "Kamal Haasan"}, {title: "Kadhal Rojave", artist: "S P Balasubrahmanyam"}, {title: "Nenjukkul Peidhidum", artist: "Hariharan"}, {title: "Kadhaippoma", artist: "Sid Sriram"},
+                        {title: "Ennavale Adi Ennavale", artist: "A. R. Rahman"}, {title: "Nenjil Jil Jil", artist: "Harris Jayaraj"}, {title: "Ondra Renda", artist: "Harris Jayaraj"}, {title: "Idhu Kadhalin", artist: "Yuvan Shankar Raja"}, {title: "Pookal Pookum", artist: "G. V. Prakash"}
+                    ]
+                }
+            };
+
+            // Map sub-moods to the main categories available in the DB
+            const moodMap = {
+                "Happy": "Happy",
+                "Sad": "Sad",
+                "Rage": "Rage",
+                "Romantic": "Love"
+            };
+
+            const mappedMood = moodMap[mood] || "Happy";
+            const songList = db[lang] && db[lang][mappedMood] ? db[lang][mappedMood] : db["English"]["Happy"];
+
+            // Format songs with duration
+            let generated = songList.map((s) => ({
+                title: s.title,
+                artist: s.artist,
+                duration: `${Math.floor(Math.random() * 2) + 3}:${Math.floor(Math.random() * 50 + 10).toString().padStart(2, '0')}`
+            }));
+            
+            return generated;
+        }
+
+        // --- STREAMING_CHUNK:JavaScript Logic - Audio Player ---
+
+        async function fetchSongPreview(title, artist, lang) {
+            try {
+                // Attempt 1: Exact Title + Artist
+                let query = encodeURIComponent(`${title} ${artist}`);
+                let res = await fetch(`https://itunes.apple.com/search?term=${query}&limit=1&media=music`);
+                let data = await res.json();
+                
+                // Attempt 2: Title + Language (fallback for regional songs)
+                if (!data.results || data.results.length === 0) {
+                    query = encodeURIComponent(`${title} ${lang}`);
+                    res = await fetch(`https://itunes.apple.com/search?term=${query}&limit=1&media=music`);
+                    data = await res.json();
+                }
+
+                // Attempt 3: Just Title
+                if (!data.results || data.results.length === 0) {
+                    query = encodeURIComponent(`${title}`);
+                    res = await fetch(`https://itunes.apple.com/search?term=${query}&limit=1&media=music`);
+                    data = await res.json();
+                }
+
+                if (data.results && data.results.length > 0) {
+                    return {
+                        url: data.results[0].previewUrl,
+                        cover: data.results[0].artworkUrl100
+                    };
+                }
+            } catch (e) {
+                console.error("iTunes search failed", e);
+            }
+            // Better ambient fallback audio if absolutely nothing is found (Rain/Wave sounds)
+            return {
+                url: "https://actions.google.com/sounds/v1/water/waves_crashing_on_rock_beach.ogg",
+                cover: null
+            };
+        }
+
+        async function playSong(index) {
+            if (index < 0 || index >= currentPlaylist.length) return;
+            
+            currentSongIndex = index;
+            const song = currentPlaylist[index];
+            
+            // Slide up the player UI
+            document.getElementById('player-bar').classList.remove('translate-y-full');
+            document.getElementById('player-title').textContent = song.title;
+            document.getElementById('player-artist').textContent = song.artist;
+            
+            // Highlight the playing row
+            document.querySelectorAll('.song-row').forEach(el => el.classList.remove('bg-brand-500/20', 'border-l-4', 'border-brand-500'));
+            const activeRow = document.getElementById(`song-row-${index}`);
+            if(activeRow) activeRow.classList.add('bg-brand-500/20', 'border-l-4', 'border-brand-500');
+
+            // Show loading spinner
+            const playBtn = document.getElementById('play-pause-btn');
+            playBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+            // Fetch actual audio preview dynamically from iTunes
+            if (!song.audioUrl) {
+                const mediaData = await fetchSongPreview(song.title, song.artist, state.currentLang);
+                song.audioUrl = mediaData.url;
+                if(mediaData.cover && !song.customCover) {
+                    song.customCover = mediaData.cover;
+                }
+            }
+
+            // Update UI with real album cover if found
+            const coverImg = song.customCover || `https://source.unsplash.com/random/100x100/?abstract,${state.currentMood?.name?.toLowerCase()}&sig=${index}`;
+            document.getElementById('player-cover').src = coverImg;
+            
+            // Update row cover image too
+            if (activeRow) {
+                const rowImg = activeRow.querySelector('.song-cover-img');
+                if (rowImg && song.customCover) rowImg.src = song.customCover;
+            }
+
+            // Play the audio
+            audioEl.src = song.audioUrl;
+            audioEl.play().then(() => {
+                isPlaying = true;
+                playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+            }).catch(e => {
+                showToast("Please click play to start audio.", "error");
+                playBtn.innerHTML = '<i class="fas fa-play ml-1"></i>';
+                isPlaying = false;
+            });
+        }
+
+        function togglePlay() {
+            if (!audioEl.src) return;
+            const playBtn = document.getElementById('play-pause-btn');
+            
+            if (isPlaying) {
+                audioEl.pause();
+                isPlaying = false;
+                playBtn.innerHTML = '<i class="fas fa-play ml-1"></i>';
+            } else {
+                audioEl.play();
+                isPlaying = true;
+                playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+            }
+        }
+
+        function nextSong() {
+            playSong((currentSongIndex + 1) % currentPlaylist.length);
+        }
+
+        function prevSong() {
+            playSong((currentSongIndex - 1 + currentPlaylist.length) % currentPlaylist.length);
+        }
+
+        function seekAudio(event) {
+            const container = document.getElementById('progress-container');
+            const rect = container.getBoundingClientRect();
+            const clickX = event.clientX - rect.left;
+            const width = rect.width;
+            const percentage = clickX / width;
+            if (audioEl.duration) {
+                audioEl.currentTime = percentage * audioEl.duration;
+            }
+        }
+
+        function setVolume(val) {
+            audioEl.volume = val;
+        }
+
+        // Audio Event Listeners for Progress Bar
+        audioEl.addEventListener('timeupdate', () => {
+            const current = audioEl.currentTime;
+            const total = audioEl.duration || 30;
+            
+            document.getElementById('progress-bar').style.width = `${(current / total) * 100}%`;
+            
+            const formatTime = (time) => {
+                if (isNaN(time)) return "0:00";
+                const mins = Math.floor(time / 60);
+                const secs = Math.floor(time % 60);
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            };
+            
+            document.getElementById('time-current').textContent = formatTime(current);
+           document.getElementById('time-total').textContent = formatTime(total);
+        });
+
+        audioEl.addEventListener('ended', nextSong);
+
+        // --- STREAMING_CHUNK:JavaScript Logic - Initialization ---
+        
+        // Expose functions to window so inline HTML triggers can find them (since script is now type="module")
+        window.logout = logout;
+        window.selectLanguage = selectLanguage;
+        window.goBackToLanguage = goBackToLanguage;
+        window.goBackToMood = goBackToMood;
+        window.selectMood = selectMood;
+        window.playSong = playSong;
+        window.togglePlay = togglePlay;
+        window.nextSong = nextSong;
+        window.prevSong = prevSong;
+        window.seekAudio = seekAudio;
+        window.setVolume = setVolume;
+
+        window.onload = async () => {
+            initBackground();
+            await initFirebase();
+            initAuthTabs();
+        };
+
+    </script>
+</body>
+</html>
